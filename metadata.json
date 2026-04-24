@@ -1,0 +1,6 @@
+{
+  "name": "CoreSystem Dashboard",
+  "description": "A high-end, technical infrastructure monitoring dashboard with advanced plugin lifecycle management, RBAC, and auditing capabilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
