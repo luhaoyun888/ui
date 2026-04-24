@@ -1,110 +1,197 @@
-import { motion } from 'motion/react';
-import { 
-  Key, 
-  ShieldCheck, 
-  Terminal, 
-  Fingerprint, 
-  ArrowRight,
-  ChevronRight,
-  Database
-} from 'lucide-react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, KeyRound, Mail, ShieldCheck } from 'lucide-react';
+import { authService, DEVELOPMENT_ADMIN_TOKEN, toErrorMessage } from '@/src/services/api';
+import { useLocale } from '@/src/i18n/LocaleProvider';
 
 export default function Login() {
-  const DEV_TOKEN = "TEST_TOKEN_01_ADMIN_CORE_VERIFIED_ACCESS";
+  const navigate = useNavigate();
+  const { t } = useLocale();
+  const [email, setEmail] = React.useState('admin@example.com');
+  const [code, setCode] = React.useState('');
+  const [manualToken, setManualToken] = React.useState('');
+  const [isSending, setIsSending] = React.useState(false);
+  const [isVerifying, setIsVerifying] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [notice, setNotice] = React.useState('');
+
+  const requestCode = async () => {
+    setError('');
+    setNotice('');
+    setIsSending(true);
+    try {
+      await authService.requestLoginCode(email);
+      setNotice(t('login.request_success', '验证码请求已提交，请检查后端邮件或验证码通道。'));
+    } catch (err) {
+      setError(toErrorMessage(err));
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const verifyCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    setIsVerifying(true);
+    try {
+      const result = await authService.verifyCode(email, code.trim());
+      if (!result.access_token) {
+        throw new Error(result.message || t('login.missing_access_token', '后端没有返回 access_token。'));
+      }
+      authService.setTokens(result.access_token, result.refresh_token);
+      navigate('/');
+    } catch (err) {
+      setError(toErrorMessage(err));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const useManualToken = (token: string) => {
+    const value = token.trim();
+    if (!value) {
+      setError(t('login.missing_token', '请先填写 Token。'));
+      return;
+    }
+    authService.setTokens(value);
+    navigate('/');
+  };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center p-4">
-      {/* Mesh Gradients specifically for Login */}
-      <div className="mesh-gradient-1 opacity-50"></div>
-      <div className="mesh-gradient-3 opacity-30"></div>
-
-      <div className="relative z-10 w-full max-w-6xl grid lg:grid-cols-2 gap-12 items-center">
-        {/* Hero Section */}
-        <div className="space-y-10 group">
-          <div className="space-y-6">
-            <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-bold tracking-widest uppercase italic">Foundation Console</span>
-            <h1 className="text-6xl font-black text-white leading-[0.9] tracking-tighter">
-              先接通真实后端 <br />
-              <span className="text-zinc-600">再逐步开放能力。</span>
+    <div className="login-console-theme relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0f172a] p-6">
+      <div className="mesh-gradient-1" />
+      <div className="mesh-gradient-2" />
+      <div className="mesh-gradient-3" />
+      <div className="grid w-full max-w-5xl items-stretch gap-8 lg:grid-cols-[1fr_1.2fr]">
+        <section className="glass-card flex flex-col justify-between rounded-[2.5rem] p-8 text-white">
+          <div>
+            <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-lg border border-white/20 bg-white/10">
+              <ShieldCheck className="h-7 w-7" />
+            </div>
+            <p className="text-sm font-semibold text-teal-100">{t('login.hero_tag', 'Foundation Console')}</p>
+            <h1 className="mt-3 text-3xl font-bold">
+              {t('login.hero_title', '先接通真实后端，再逐步开放更重的能力。')}
             </h1>
-            <p className="text-slate-400 text-xl leading-relaxed max-w-lg">
-              当前 UI 已接入真实验证码登录、开发测试 Token、插件生命周期、RBAC 查询和系统健康检查。
+            <p className="mt-4 leading-7 text-teal-50">
+              {t('login.hero_description', '当前 UI 已接入真实验证码登录、开发测试 Token、插件生命周期、RBAC 查询和系统健康检查。')}
             </p>
           </div>
-
-          <div className="p-8 glass-card rounded-[2.5rem] border-indigo-500/20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-[80px] rounded-full"></div>
-            <div className="flex items-center gap-4 mb-4">
-               <Fingerprint className="w-8 h-8 text-indigo-400" />
-               <h3 className="text-white font-bold text-lg">Quick Access Token</h3>
-            </div>
-            <code className="block p-4 glass-surface rounded-2xl text-[10px] font-mono text-indigo-300 break-all select-all cursor-pointer hover:bg-white/10 transition-colors">
-              {DEV_TOKEN}
+          <div className="mt-8 border-t border-white/20 pt-5 text-sm text-teal-50">
+            {t('login.dev_token_label', '开发测试 Token')}
+            <code className="mt-2 block break-all rounded border border-white/20 bg-white/10 px-3 py-2 text-xs">
+              {DEVELOPMENT_ADMIN_TOKEN}
             </code>
-            <p className="mt-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-               <Database className="w-3 h-3" /> Production Environment Verified
+          </div>
+        </section>
+
+        <section className="glass-card rounded-[2.5rem] p-8 shadow-sm">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-zinc-950">
+              {t('login.panel_title', '登录控制台')}
+            </h2>
+            <p className="mt-2 text-zinc-500">
+              {t('login.panel_description', '当前后端默认不走密码登录，请使用验证码或 Token 登录。')}
             </p>
           </div>
 
-          <div className="flex gap-12 text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em]">
-             <div>AUTHENTICATION <span className="text-white ml-2">VERIFIED</span></div>
-             <div>SYSTEM HEALYTH <span className="text-white ml-2">OPTIMAL</span></div>
-          </div>
-        </div>
+          {error && (
+            <div className="mb-4 rounded-lg border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-700">
+              {error}
+            </div>
+          )}
+          {notice && (
+            <div className="mb-4 rounded-lg border border-teal-100 bg-teal-50 p-4 text-sm font-medium text-teal-800">
+              {notice}
+            </div>
+          )}
 
-        {/* Login Panel */}
-        <div className="glass-card rounded-[3.5rem] p-12 border-white/20 shadow-3xl shadow-indigo-500/10">
-          <div className="mb-10">
-            <h2 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-4">
-              <span className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center"><Key className="w-6 h-6 text-indigo-400" /></span>
-              登录控制台
-            </h2>
-            <p className="text-slate-500 font-medium">当前后端默认不走密码登录，使用验证码或 Token 登录。</p>
-          </div>
-
-          <form className="space-y-6">
+          <form className="space-y-5" onSubmit={verifyCode}>
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-4">Authorized Identifier</label>
-              <div className="relative">
-                 <input 
-                   type="text" 
-                   placeholder="Email or Access Token"
-                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 transition-all font-medium"
-                 />
+              <label className="text-sm font-bold text-zinc-700">{t('login.email_label', '邮箱')}</label>
+              <div className="group relative">
+                <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-teal-700" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-3 pl-12 pr-4 text-zinc-700 outline-none transition-all focus:border-teal-700 focus:ring-4 focus:ring-teal-50"
+                  placeholder="name@company.com"
+                />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-4">Security Challenge</label>
-              <div className="flex gap-4">
-                 <input 
-                   type="text" 
-                   placeholder="Verification Code"
-                   className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 transition-all font-medium"
-                 />
-                 <button type="button" className="px-6 glass-panel rounded-2xl text-[10px] font-bold text-white uppercase tracking-widest hover:bg-white/10 transition-all">
-                   Get Code
-                 </button>
+            <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-zinc-700">{t('login.code_label', '验证码')}</label>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-zinc-700 outline-none transition-all focus:border-teal-700 focus:ring-4 focus:ring-teal-50"
+                  placeholder={t('login.code_placeholder', '输入后端发出的验证码')}
+                />
               </div>
-            </div>
-
-            <div className="pt-4">
-              <button className="w-full py-5 bg-indigo-600 text-white rounded-[1.5rem] font-bold text-lg shadow-2xl shadow-indigo-500/40 hover:bg-indigo-500 hover:scale-[1.02] transition-all flex items-center justify-center gap-3">
-                Authorized Login <ArrowRight className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={requestCode}
+                disabled={isSending}
+                className="rounded-lg border border-teal-700 px-4 py-3 font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-60"
+              >
+                {isSending
+                  ? t('login.send_code_busy', '发送中...')
+                  : t('login.send_code', '发送验证码')}
               </button>
             </div>
+
+            <button
+              type="submit"
+              disabled={isVerifying || !code.trim()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 py-3 font-bold text-white transition-all hover:bg-teal-800 focus:ring-4 focus:ring-teal-100 disabled:opacity-60"
+            >
+              {isVerifying ? (
+                t('login.verify_busy', '验证中...')
+              ) : (
+                <>
+                  {t('login.verify', '验证并进入')}
+                  <ArrowRight className="h-5 w-5" />
+                </>
+              )}
+            </button>
           </form>
 
-          <div className="mt-12 pt-8 border-t border-white/5 flex flex-col gap-4">
-             <div className="flex items-center justify-between p-4 glass-surface rounded-2xl cursor-pointer hover:bg-white/10 transition-all group">
-                <span className="text-xs font-bold text-slate-400 group-hover:text-white transition-colors">Developer Environment Override</span>
-                <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400 transition-colors" />
-             </div>
-             <p className="text-center text-[10px] font-bold text-slate-700 uppercase tracking-[0.3em]">
-                System V2.42 // ACCESS CONTROLLED
-             </p>
+          <div className="my-6 h-px bg-zinc-100" />
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-bold text-zinc-700">{t('login.manual_token', '手动 Token')}</label>
+              <textarea
+                value={manualToken}
+                onChange={(event) => setManualToken(event.target.value)}
+                className="mt-2 min-h-24 w-full rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 font-mono text-sm text-zinc-700 outline-none transition-all focus:border-teal-700 focus:ring-4 focus:ring-teal-50"
+                placeholder={t('login.manual_token_placeholder', '粘贴 Bearer Token 或开发测试 Token')}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => useManualToken(manualToken)}
+                className="flex items-center justify-center gap-2 rounded-lg border border-zinc-300 px-4 py-3 font-semibold text-zinc-800 hover:bg-zinc-50"
+              >
+                <KeyRound className="h-4 w-4" />
+                {t('login.use_manual_token', '使用手动 Token')}
+              </button>
+              <button
+                type="button"
+                onClick={() => useManualToken(DEVELOPMENT_ADMIN_TOKEN)}
+                className="rounded-lg border border-amber-200 bg-amber-100 px-4 py-3 font-semibold text-amber-900 hover:bg-amber-200"
+              >
+                {t('login.use_dev_token', '使用开发测试 Token')}
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

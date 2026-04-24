@@ -1,141 +1,230 @@
-import { motion } from 'motion/react';
-import { ShieldCheck, Cpu, Zap, Workflow, ZapOff } from 'lucide-react';
-import { cn } from '../lib/utils';
+import React from 'react';
+import { Activity, AlertCircle, ArrowRight, Database, PauseCircle, PlugZap, Puzzle, ShieldCheck, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { pluginService, systemService, type Plugin, type RuntimeMetrics, toErrorMessage } from '@/src/services/api';
+import { useLocale } from '@/src/i18n/LocaleProvider';
+
+function numberValue(value: unknown) {
+  if (typeof value === 'number') {
+    return value.toLocaleString();
+  }
+  return '0';
+}
 
 export default function Dashboard() {
-  const stats = [
-    { label: 'Uptime', value: '99.98%', trend: 'Stable', icon: Activity },
-    { label: 'Load Time', value: '1.2s', trend: '-24%', icon: Zap },
-    { label: 'Latency', value: '18ms', trend: '-2ms', icon: Cpu },
-    { label: 'Coverage', value: '98.4%', trend: 'Optimal', icon: ShieldCheck },
+  const { t } = useLocale();
+  const [health, setHealth] = React.useState<Record<string, unknown> | null>(null);
+  const [plugins, setPlugins] = React.useState<Plugin[]>([]);
+  const [pluginTotal, setPluginTotal] = React.useState(0);
+  const [runtime, setRuntime] = React.useState<RuntimeMetrics | null>(null);
+  const [error, setError] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+
+  const refresh = React.useCallback(async () => {
+    setLoading(true);
+    setError('');
+    const errors: string[] = [];
+
+    const [healthResult, pluginsResult, runtimeResult] = await Promise.allSettled([
+      systemService.getHealth(),
+      pluginService.getPlugins(1, 50),
+      pluginService.getRuntimeMetrics(),
+    ]);
+
+    if (healthResult.status === 'fulfilled') {
+      setHealth(healthResult.value);
+    } else {
+      errors.push(`health: ${toErrorMessage(healthResult.reason)}`);
+    }
+
+    if (pluginsResult.status === 'fulfilled') {
+      setPlugins(pluginsResult.value.items);
+      setPluginTotal(Number(pluginsResult.value.meta?.total || pluginsResult.value.items.length));
+    } else {
+      errors.push(`plugins: ${toErrorMessage(pluginsResult.reason)}`);
+    }
+
+    if (runtimeResult.status === 'fulfilled') {
+      setRuntime(runtimeResult.value);
+    } else {
+      errors.push(`runtime: ${toErrorMessage(runtimeResult.reason)}`);
+    }
+
+    setError(errors.join(' | '));
+    setLoading(false);
+  }, []);
+
+  React.useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const healthStatus = String(health?.status || health?.message || (health ? t('system.reachable', '可达') : t('common.unknown', '未知')));
+  const coreFeatureMatrix = [
+    {
+      key: 'health',
+      label: t('dashboard.features.health_label', '系统健康'),
+      status: t('plugins.status_labels.enabled', '已启用'),
+      note: t('dashboard.features.health_note', '健康检查、连通性与指标接口'),
+    },
+    {
+      key: 'auth',
+      label: t('dashboard.features.auth_label', '认证与用户'),
+      status: t('plugins.status_labels.enabled', '已启用'),
+      note: t('dashboard.features.auth_note', '验证码、免密链接、当前用户信息'),
+    },
+    {
+      key: 'plugins',
+      label: t('dashboard.features.plugins_label', '插件生命周期'),
+      status: t('plugins.status_labels.enabled', '已启用'),
+      note: t('dashboard.features.plugins_note', '元数据、版本、上传、安装、加载与调用'),
+    },
+    {
+      key: 'rbac',
+      label: t('dashboard.features.rbac_label', 'RBAC 权限'),
+      status: t('dashboard.features.read_only', '只读'),
+      note: t('dashboard.features.rbac_note', '角色与权限列表查询'),
+    },
+  ];
+  const deferredFeatureMatrix = [
+    { key: 'agent', label: 'AI Agent', flag: 'feature_flags.agent', reason: t('dashboard.deferred_features.agent_reason', '模型能力暂时后置，先把基础架构和测试链路打稳。') },
+    { key: 'workflow', label: 'Workflow', flag: 'feature_flags.workflow', reason: t('dashboard.deferred_features.workflow_reason', '流程编排暂不进入最小可运行核心。') },
+    { key: 'edge', label: 'Edge', flag: 'feature_flags.edge', reason: t('dashboard.deferred_features.edge_reason', 'Edge 相关能力暂不纳入当前默认开放链路。') },
+  ];
+  const statCards = [
+    { label: t('dashboard.stats.plugins_total', '插件总数'), value: pluginTotal.toLocaleString(), icon: Puzzle, hint: 'GET /api/v1/plugins' },
+    { label: t('dashboard.stats.loaded_versions', '已加载版本'), value: numberValue(runtime?.loaded_plugins_count), icon: PlugZap, hint: '运行时指标' },
+    { label: t('dashboard.stats.total_calls', '总调用次数'), value: numberValue(runtime?.total_call_count), icon: Zap, hint: '调用指标' },
+    { label: t('dashboard.stats.active_calls', '活动调用'), value: numberValue(runtime?.active_calls_count), icon: Activity, hint: '运行时' },
   ];
 
   return (
-    <div className="space-y-8 pb-10">
-      {/* Hero Section */}
-      <section className="glass-card rounded-[2.5rem] p-10 relative overflow-hidden group">
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/10 blur-[100px] rounded-full group-hover:bg-indigo-500/20 transition-all duration-1000"></div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-          <div className="max-w-2xl">
-            <span className="px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-bold tracking-widest uppercase mb-4 inline-block">
-              Foundation Console
-            </span>
-            <h1 className="text-5xl font-bold text-white tracking-tighter mb-4">
-              核心总览 <span className="text-indigo-400">Core Dashboard</span>
-            </h1>
-            <p className="text-slate-400 text-lg leading-relaxed">
-              这里只展示当前后端实际开放、可直接验证的基础能力。
-              最小可运行核心，先接通真实后端，再逐步开放更重的能力。
-            </p>
-          </div>
-          <div className="flex gap-4">
-            <button className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-500/30 hover:bg-indigo-500 transition-all">
-              运行状态检查
-            </button>
-          </div>
+    <div className="dashboard-console-theme space-y-8 pb-10">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-zinc-950">{t('dashboard.title', '核心总览')}</h1>
+          <p className="mt-1 font-medium text-zinc-500">{t('dashboard.subtitle', '这里只展示当前后端实际开放、可直接验证的基础能力。')}</p>
         </div>
-      </section>
+        <button
+          onClick={() => void refresh()}
+          disabled={loading}
+          className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
+        >
+          {loading ? t('dashboard.refresh_busy', '刷新中...') : t('dashboard.refresh', '刷新状态')}
+        </button>
+      </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="p-8 glass-panel rounded-[2rem] group hover:bg-white/10 transition-all cursor-default"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-indigo-400 group-hover:text-white transition-colors duration-500">
-                <stat.icon className="w-6 h-6" />
+      {error && (
+        <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm">{error}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {statCards.map((stat) => (
+          <div key={stat.label} className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+                <stat.icon className="h-5 w-5" />
               </div>
-              <span className={cn(
-                "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                stat.trend.startsWith('-') ? "text-teal-400 bg-teal-400/10" : "text-slate-500 bg-white/5"
-              )}>
-                {stat.trend}
-              </span>
+              <span className="text-xs text-zinc-500">{stat.hint}</span>
             </div>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{stat.label}</p>
-            <p className="text-3xl font-bold text-white tracking-tighter">{stat.value}</p>
-          </motion.div>
+            <p className="text-sm font-semibold text-zinc-500">{stat.label}</p>
+            <p className="mt-1 text-3xl font-bold text-zinc-950">{stat.value}</p>
+          </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Core Features */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="p-10 glass-card rounded-[3rem]">
-            <h2 className="text-2xl font-bold text-white mb-6 underline decoration-indigo-500/50 underline-offset-8">最小核心能力</h2>
-            <div className="grid md:grid-cols-2 gap-6">
-              {[
-                { label: '插件生命周期', note: '完整覆盖创建、上传、版本管理、运行态切换。' },
-                { label: 'RBAC 权限查询', note: '当前页面先提供只读接入，展示全局角色与权限。' },
-                { label: '系统健康检查', note: '实时后端响应监测，原始响应 Health / Ping。' },
-                { label: 'Token 验证', note: '支持开发测试 Token 与真实验证码登录。' }
-              ].map((f, i) => (
-                <div key={i} className="p-6 glass-surface rounded-3xl group hover:border-white/20 transition-all">
-                  <h3 className="text-white font-bold mb-2 flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                    {f.label}
-                  </h3>
-                  <p className="text-slate-500 text-sm leading-relaxed">{f.note}</p>
-                </div>
-              ))}
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-zinc-950">{t('dashboard.sections.core_title', '最小核心能力')}</h2>
+              <p className="mt-1 text-sm text-zinc-500">{t('dashboard.sections.core_subtitle', '只列出当前 UI 已接通或已经可以验证的后端能力。')}</p>
             </div>
+            <ShieldCheck className="h-6 w-6 text-teal-700" />
           </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {coreFeatureMatrix.map((feature) => (
+              <div key={feature.key} className="rounded-lg border border-zinc-200 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-bold text-zinc-900">{feature.label}</h3>
+                  <span className="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs text-teal-800">{feature.status}</span>
+                </div>
+                <p className="mt-2 text-sm text-zinc-500">{feature.note}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-          <div className="p-10 glass-panel rounded-[3rem]">
-            <h2 className="text-2xl font-bold text-white mb-6">后续功能规划</h2>
-            <div className="space-y-4">
-              {[
-                { label: 'AI Agent', flag: 'feature_flags.agent', reason: '暂不纳入最小核心，先稳定插件流程' },
-                { label: 'Workflow', flag: 'feature_flags.workflow', reason: '能力待后端完整接通后再开放' }
-              ].map((f, i) => (
-                <div key={i} className="flex items-center justify-between p-6 glass-surface rounded-3xl">
-                  <div>
-                    <h3 className="text-white font-bold mb-1">{f.label}</h3>
-                    <code className="text-[10px] text-indigo-400 font-mono bg-indigo-500/10 px-2 py-0.5 rounded-lg">{f.flag}</code>
-                  </div>
-                  <span className="text-slate-500 text-xs italic">{f.reason}</span>
-                </div>
-              ))}
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-zinc-950">{t('dashboard.sections.deferred_title', '后续功能')}</h2>
+              <p className="mt-1 text-sm text-zinc-500">{t('dashboard.sections.deferred_subtitle', '这些能力暂不进入当前测试主流程。')}</p>
             </div>
+            <PauseCircle className="h-6 w-6 text-amber-700" />
           </div>
-        </div>
+          <div className="space-y-3">
+            {deferredFeatureMatrix.map((feature) => (
+              <div key={feature.key} className="rounded-lg border border-amber-100 bg-amber-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-bold text-amber-950">{feature.label}</h3>
+                  <code className="text-xs text-amber-800">{feature.flag}</code>
+                </div>
+                <p className="mt-2 text-sm text-amber-900">{feature.reason}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
 
-        {/* Steps Card */}
-        <div className="p-10 glass-card rounded-[3rem] h-fit">
-          <h2 className="text-2xl font-bold text-white mb-8">下一步可测路径</h2>
-          <div className="space-y-8">
-            <div className="relative pl-10 border-l border-white/10 space-y-12 pb-2">
-              {[
-                { title: 'Token 授权', desc: '使用开发测试 Token 登录控制台' },
-                { title: '插件管理', desc: '上传 ZIP 包，生命周期状态同步' },
-                { title: '函数列表', desc: '安装加载后读取函数并完整调用' }
-              ].map((step, i) => (
-                <div key={i} className="relative">
-                  <div className="absolute -left-[51px] top-0 w-5 h-5 bg-[#0f172a] border-4 border-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)] z-10" />
-                  <h4 className="text-white font-bold mb-1">{step.title}</h4>
-                  <p className="text-slate-500 text-sm">{step.desc}</p>
-                </div>
-              ))}
-            </div>
-            <button className="w-full py-4 glass-panel rounded-2xl text-indigo-400 font-bold hover:bg-indigo-500 hover:text-white transition-all duration-500">
-              开始导航指引
-            </button>
+      <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <Database className="h-5 w-5 text-teal-700" />
+            <h2 className="text-xl font-bold text-zinc-950">{t('dashboard.sections.backend_health_title', '后端健康')}</h2>
           </div>
-        </div>
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-500">/health</dt>
+              <dd className="font-semibold text-zinc-900">{healthStatus}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-500">MySQL</dt>
+              <dd className="font-semibold text-zinc-900">{t('dashboard.health.mysql', '由后端启动日志与接口返回间接验证')}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-zinc-500">Redis</dt>
+              <dd className="font-semibold text-zinc-900">{t('dashboard.health.redis', '不是当前最小核心依赖')}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-zinc-950">{t('dashboard.sections.next_steps_title', '下一步可测路径')}</h2>
+              <p className="mt-1 text-sm text-zinc-500">{t('dashboard.sections.next_steps_subtitle', '先从插件生命周期开始，不碰 Agent / Workflow / Edge。')}</p>
+            </div>
+            <Link to="/plugins" className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 font-semibold text-white hover:bg-teal-800">
+              {t('dashboard.sections.enter_plugins', '进入插件系统')}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <ol className="grid gap-3 text-sm md:grid-cols-3">
+            <li className="rounded-lg border border-zinc-200 p-4">{t('dashboard.steps.step1', '1. 使用开发测试 Token 登录。')}</li>
+            <li className="rounded-lg border border-zinc-200 p-4">{t('dashboard.steps.step2', '2. 创建插件与版本，上传 ZIP 包。')}</li>
+            <li className="rounded-lg border border-zinc-200 p-4">{t('dashboard.steps.step3', '3. 安装、加载、读取函数列表并调用。')}</li>
+          </ol>
+          {plugins.length > 0 && (
+            <p className="mt-4 text-sm text-zinc-500">
+              {plugins.slice(0, 3).map((plugin) => plugin.name).join(', ')}
+              {plugins.length > 3 ? '...' : ''}
+            </p>
+          )}
+        </section>
       </div>
     </div>
-  );
-}
-
-function Activity(props: any) {
-  return (
-    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-    </svg>
   );
 }
