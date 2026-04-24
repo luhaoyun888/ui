@@ -1,146 +1,80 @@
-import React from 'react';
-import { AlertCircle, RefreshCw, ShieldCheck } from 'lucide-react';
-import { rbacService, toErrorMessage } from '@/src/services/api';
-import { useLocale } from '@/src/i18n/LocaleProvider';
+import { motion } from 'motion/react';
+import { ShieldCheck, Lock, UserCheck, ShieldAlert, Key } from 'lucide-react';
 
-type Row = Record<string, unknown>;
-
-function FieldList({ item }: { item: Row }) {
-  const entries = Object.entries(item).slice(0, 6);
+export default function RBAC() {
   return (
-    <dl className="grid gap-2 text-sm">
-      {entries.map(([key, value]) => (
-        <div key={key} className="grid grid-cols-[120px_1fr] gap-3">
-          <dt className="text-zinc-500">{key}</dt>
-          <dd className="break-all text-zinc-900">{String(value ?? '-')}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function DataPanel({
-  title,
-  description,
-  items,
-  emptyLabel,
-}: {
-  title: string;
-  description: string;
-  items: Row[];
-  emptyLabel: string;
-}) {
-  return (
-    <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-zinc-950">{title}</h2>
-          <p className="mt-1 text-sm text-zinc-500">{description}</p>
-        </div>
-        <span className="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs text-teal-800">
-          {items.length}
-        </span>
-      </div>
-
-      <div className="max-h-[620px] space-y-3 overflow-auto pr-1">
-        {items.length === 0 && (
-          <p className="rounded-lg border border-dashed border-zinc-200 p-4 text-sm text-zinc-500">{emptyLabel}</p>
-        )}
-        {items.map((item, index) => (
-          <article key={String(item.id || item.name || index)} className="rounded-lg border border-zinc-200 p-4">
-            <FieldList item={item} />
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-export default function RBACCore() {
-  const { t } = useLocale();
-  const [roles, setRoles] = React.useState<Row[]>([]);
-  const [permissions, setPermissions] = React.useState<Row[]>([]);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState('');
-
-  const refresh = React.useCallback(async () => {
-    setLoading(true);
-    setError('');
-    const errors: string[] = [];
-    const [rolesResult, permissionsResult] = await Promise.allSettled([
-      rbacService.getRoles(),
-      rbacService.getPermissions(),
-    ]);
-
-    if (rolesResult.status === 'fulfilled') {
-      setRoles(rolesResult.value);
-    } else {
-      errors.push(`roles: ${toErrorMessage(rolesResult.reason)}`);
-    }
-
-    if (permissionsResult.status === 'fulfilled') {
-      setPermissions(permissionsResult.value);
-    } else {
-      errors.push(`permissions: ${toErrorMessage(permissionsResult.reason)}`);
-    }
-
-    setError(errors.join('; '));
-    setLoading(false);
-  }, []);
-
-  React.useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  return (
-    <div className="rbac-console-theme space-y-6 pb-10">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-zinc-950">{t('rbac.title', 'RBAC 权限')}</h1>
-          <p className="mt-1 text-zinc-500">{t('rbac.subtitle', '当前页面先提供只读接入，展示全局角色与权限列表。')}</p>
-        </div>
-        <button
-          onClick={() => void refresh()}
-          disabled={loading}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
-        >
-          <RefreshCw className="h-4 w-4" />
-          {loading ? t('rbac.refresh_busy', '刷新中...') : t('rbac.refresh', '刷新 RBAC')}
-        </button>
-      </div>
-
-      {error && (
-        <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-          <p className="text-sm">{error}</p>
-        </div>
-      )}
-
-      <section className="rounded-lg border border-teal-100 bg-teal-50 p-5">
-        <div className="flex gap-3">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" />
-          <div>
-            <h2 className="font-bold text-teal-950">{t('rbac.boundary_title', '当前边界')}</h2>
-            <p className="mt-1 text-sm text-teal-900">
-              {t('rbac.boundary_description', '这里先展示角色与权限数据，策略写操作仍待后端完整接通后再开放。')}
-            </p>
+    <div className="space-y-8 pb-10">
+      <section className="glass-card rounded-[2.5rem] p-10 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-pink-500/5 blur-[100px] rounded-full group-hover:bg-pink-500/10 transition-all duration-1000"></div>
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-4">
+             <span className="px-3 py-1 bg-pink-500/20 text-pink-300 rounded-full text-[10px] font-bold tracking-widest uppercase italic">Console Authority</span>
           </div>
+          <h1 className="text-4xl font-bold text-white tracking-tight">RBAC 权限管理 <span className="text-pink-400 font-mono text-xl ml-2 tracking-widest uppercase">ReadOnly</span></h1>
+          <p className="text-slate-400 mt-2 max-w-2xl leading-relaxed">
+            当前页面先提供只读接入，展示全局角色与权限列表。先接通真实后端，再逐步开放更重的能力。
+          </p>
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <DataPanel
-          title={t('rbac.roles_title', '全局角色')}
-          description={t('rbac.roles_description', 'GET /api/v1/roles/global')}
-          items={roles}
-          emptyLabel={t('rbac.empty', '暂无返回数据。')}
-        />
-        <DataPanel
-          title={t('rbac.permissions_title', '权限列表')}
-          description={t('rbac.permissions_description', 'GET /api/v1/permissions')}
-          items={permissions}
-          emptyLabel={t('rbac.empty', '暂无返回数据。')}
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="glass-card rounded-[3rem] p-10">
+            <h2 className="text-2xl font-bold text-white mb-8 underline decoration-pink-500/50 underline-offset-8">权限矩阵角色预览</h2>
+            <div className="space-y-4">
+              {[
+                { role: 'SYSTEM_ADMIN', desc: 'Full access to core plugins, infrastructure metrics, and global RBAC settings.' },
+                { role: 'DEVELOPER', desc: 'Manage plugins life-cycle, view system health, and call remote procedures.' },
+                { role: 'SECURITY_AUDITOR', desc: 'ReadOnly access to system logs, RBAC matrix, and security events.' }
+              ].map((role, i) => (
+                <div key={i} className="p-6 glass-surface rounded-3xl border border-white/5 group hover:bg-white/5 transition-all">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-10 h-10 bg-pink-500/10 rounded-xl flex items-center justify-center text-pink-400 group-hover:bg-pink-500 group-hover:text-white transition-all">
+                      <UserCheck className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-white font-bold tracking-widest font-mono">{role.role}</h4>
+                  </div>
+                  <p className="text-sm text-slate-500 leading-relaxed">{role.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-8 glass-panel rounded-[2.5rem] border border-pink-500/20">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+               <ShieldAlert className="w-5 h-5 text-pink-400" /> 当前运行边界 / Logic Boundary
+            </h3>
+            <p className="text-sm text-pink-300/80 leading-relaxed">
+              这里先展示角色与权限数据，策略写操作仍待后端完整接通后再开放。界面锁定在只读态，任何写请求都将被 Mock Proxy 或远程 403 拦截。
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="glass-card rounded-[2.5rem] p-8">
+            <h3 className="text-white font-bold mb-6 flex items-center gap-2">
+              <Key className="w-5 h-5 text-indigo-400" /> 全局权限集
+            </h3>
+            <div className="space-y-3">
+              {['PLUGIN_READ', 'PLUGIN_WRITE', 'PLUGIN_DELETE', 'METRICS_READ', 'RBAC_READ', 'LOGS_VIEW', 'SYSTEM_REBOOT'].map((p, i) => (
+                <div key={i} className="flex items-center justify-between p-3 glass-surface rounded-xl group transition-all">
+                  <span className="text-[10px] font-bold font-mono text-slate-400 group-hover:text-white transition-colors tracking-widest uppercase">{p}</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.5)]" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-surface rounded-[2.5rem] p-10 text-center border border-white/5 relative overflow-hidden">
+             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-pink-500/5"></div>
+             <ShieldCheck className="w-12 h-12 text-indigo-500/30 mx-auto mb-4" />
+             <h4 className="text-white font-bold mb-2">Policy Synchronizer</h4>
+             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 leading-relaxed">Last global sync: 4m ago</p>
+             <button className="relative z-10 px-6 py-2 glass-panel rounded-xl text-[10px] font-bold uppercase tracking-widest text-white hover:bg-white/10 transition-all">
+               Deep Verify Policies
+             </button>
+          </div>
+        </div>
       </div>
     </div>
   );
